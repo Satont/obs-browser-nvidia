@@ -3,8 +3,8 @@
 set -euo pipefail
 runtime=${OBS_BROWSER_RUNTIME_ROOT:-/usr/lib/obs-browser-nvidia}
 data=${OBS_BROWSER_DATA_ROOT:-/usr/share/obs/obs-plugins/obs-browser}
-core=/usr/lib/obs-modules/core
-coredata=/usr/share/obs/obs-modules/core/obs-browser
+core=${OBS_BROWSER_CORE_ROOT:-/usr/lib/obs-modules/core}
+coredata=${OBS_BROWSER_COREDATA_ROOT:-/usr/share/obs/obs-modules/core/obs-browser}
 if [[ ! -f $core/obs-browser.so ]]; then
   echo 'This launcher currently requires the Arch OBS 33 core module layout.' >&2
   exit 1

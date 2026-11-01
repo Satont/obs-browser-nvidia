@@ -169,8 +169,27 @@ int main(int argc, char **argv)
 				       (long long)calldata_int(&data, "graphics_wait_ns"));
 			}
 			calldata_free(&data);
+			if (qEnvironmentVariableIsSet("OBS_BROWSER_TEST_FALLBACK_RACE")) {
+				calldata_init(&data);
+				if (proc_handler_call(obs_source_get_proc_handler(src), "browser_test_state", &data)) {
+					printf("BROWSERS source=%s creations=%lld attached=%lld peak=%lld\n",
+					       obs_source_get_name(src), (long long)calldata_int(&data, "creations"),
+					       (long long)calldata_int(&data, "attached"),
+					       (long long)calldata_int(&data, "peak"));
+				}
+				calldata_free(&data);
+			}
 		}
 		fflush(stdout);
+		if (frame == 1 && qEnvironmentVariableIsSet("OBS_BROWSER_TEST_FALLBACK_RACE")) {
+			calldata_t data;
+			calldata_init(&data);
+			const bool requested = proc_handler_call(obs_source_get_proc_handler(sources[0]),
+								 "browser_test_fallback_race", &data);
+			calldata_free(&data);
+			printf("FALLBACK_RACE requested=%d\n", requested);
+			fflush(stdout);
+		}
 		if (frame == 1 && qEnvironmentVariableIsSet("OBS_BROWSER_TEST_DEVTOOLS")) {
 			calldata_t data;
 			calldata_init(&data);

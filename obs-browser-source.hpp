@@ -51,11 +51,15 @@ struct BrowserSource {
 	std::atomic<bool> gpu_active{false};
 	std::atomic<bool> gpu_frame_received{false};
 	std::atomic<bool> fallback_requested{false};
+	std::atomic<bool> fallback_in_progress{false};
 	std::atomic<uint64_t> gpu_started_ns{0};
 	std::atomic<uint64_t> gpu_frames{0}, cpu_frames{0};
 	std::atomic<uint64_t> render_frames{0}, extra_copy_frames{0}, gpu_copy_ns{0}, gpu_import_ns{0},
 		graphics_wait_ns{0};
 	void RequestCPUFallback(const char *reason);
+#ifdef OBS_BROWSER_TEST_HOOKS
+	std::atomic<uint64_t> test_browser_creations{0}, test_attached_browsers{0}, test_peak_browsers{0};
+#endif
 #endif
 	std::atomic<bool> create_browser{false};
 	std::recursive_mutex lockBrowser;

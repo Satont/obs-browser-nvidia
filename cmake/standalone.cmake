@@ -17,6 +17,8 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 add_compile_definitions(ENABLE_WAYLAND)
 include(GNUInstallDirs)
 install(FILES "${PROJECT_SOURCE_DIR}/COPYING" DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/obs-browser-nvidia)
+install(PROGRAMS "${PROJECT_SOURCE_DIR}/scripts/obs-nvidia-browser" DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES "${PROJECT_SOURCE_DIR}/packaging/obs-nvidia-browser.desktop" DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 
 function(set_target_properties_obs target)
   set(i 2)

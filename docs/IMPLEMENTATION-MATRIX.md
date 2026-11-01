@@ -5,6 +5,15 @@ Audit date: **2026-10-29**. `git fetch upstream --prune` confirmed latest obs-br
 The refreshed Spotify Linux64 index lists **156.0.14+g4fa4ab5 / Chromium 156.0.8078.48** as the newest
 stable distribution. This is the pinned SDK/runtime, not a mixture of system headers and a newer DLL.
 
+**2026-11-01 synchronization addendum:** the historical audit below predates
+[CEF #4313](https://github.com/chromiumembedded/cef/issues/4313) and
+[#4314](https://github.com/chromiumembedded/cef/pull/4314). Native-handle support from #4238 does
+not provide complete NVIDIA synchronization: the CEF 156 producer can return a DMA-BUF before
+its GPU writes complete. The consumer-side `glFinish` in this fork prevents premature buffer
+reuse after the copy, but cannot supply the missing producer dependency. #4314 remains an
+unmerged proposed CEF fix; the pinned runtime is an experimental candidate with possible tearing
+or incomplete frames. Earlier NVIDIA results are historical, not proof this issue is fixed.
+
 ## Evidence and interpretation
 
 - [Machine-readable snapshot](upstream-snapshot.json) includes PR metadata, **`merged` boolean**,
@@ -40,11 +49,15 @@ Additional fork revisions and reuse decisions are recorded in [FORKS.md](FORKS.m
 
 ## Architectural decisions
 
-1. **Stable baseline first:** OSR GPU on native Wayland uses stock stable CEF 156, libobs DMA-BUF
-   import and an owned GPU texture. No full OBS/Chromium rebuild for the supported path.
+1. **Pinned test candidate:** OSR GPU on native Wayland uses stock CEF 156, libobs DMA-BUF
+   import and an owned GPU texture. This candidate builds without rebuilding OBS or Chromium,
+   but NVIDIA is not a stable supported path until producer synchronization is fixed and retested.
+   See the [CEF synchronization patch/source-build guide](CEF-NVIDIA-SYNC.md) for the pending fix.
 2. **Lifetime before zero-copy claims:** CEF buffers belong to its pool and are valid only during
-   the callback. Keep `glFinish` until a proven producer/consumer fence protocol exists. Performance
-   on the simple fixture is not better than CPU paint; hardware use is not a speedup guarantee.
+   the callback. Keep `glFinish` for consumer-copy completion, but it does **not** fix the missing
+   producer synchronization in CEF #4313. A proven producer/consumer fence protocol or corrected
+   CEF/Chromium runtime is still required. Performance on the simple fixture is not better than
+   CPU paint; hardware use is not a speedup guarantee.
 3. **Safe GPU policy:** auto retains the NVIDIA block, explicit NVIDIA mode needs a fixed CEF and
    import capabilities, per-source failures reload on CPU. Static transparent pages do not fail a
    pixel-opacity heuristic. GPU-process/device-reset failure is a process-global limitation.

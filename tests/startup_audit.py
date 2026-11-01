@@ -12,13 +12,18 @@ FAILED = "CEF failed to initialize"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--executable", type=Path, default=ROOT / "build" / "cef-startup-test")
-parser.add_argument("--module", type=Path, default=ROOT / "build" / "obs-browser.so")
+parser.add_argument("--module", type=Path, default=ROOT / "stage/usr/lib/obs-browser-nvidia/obs-browser.so")
 parser.add_argument("--data", type=Path, default=ROOT / "data")
 parser.add_argument("--output-dir", type=Path, required=True)
 parser.add_argument("--repeat", type=int, default=2)
 parser.add_argument("--timeout", type=float, default=60)
 parser.add_argument("--cef-arg", action="append", default=[])
 args = parser.parse_args()
+
+runtime = args.module.resolve().parent
+for name in ["libcef.so", "obs-browser-page", "resources.pak", "icudtl.dat"]:
+    if not (runtime / name).is_file():
+        raise SystemExit(f"missing CEF runtime file {runtime / name}; run DESTDIR=\"$PWD/stage\" cmake --install build first")
 
 if args.repeat < 1:
     raise SystemExit("--repeat must be positive")

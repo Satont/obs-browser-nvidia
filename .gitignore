@@ -7,6 +7,8 @@
 #cmake
 /cmbuild/
 /build/
+/build-release/
+/build-v3/
 /build32/
 /build64/
 /release/
@@ -17,6 +19,8 @@
 /debug64/
 /builds/
 /stage/
+/stage-release/
+/dist/
 /test-results/
 /audit-cache/
 /tests/__pycache__/

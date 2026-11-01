@@ -1,7 +1,110 @@
 # Validation record
 
-Hardware: NVIDIA GeForce RTX 5060, driver 615.78.08. CachyOS/Arch, Hyprland.
-Installed SDK: OBS 33.0.0; compiler GCC 16.2.1. CEF 156.0.14 / Chromium 156.0.8078.48.
+## CPU compatibility correction — 2026-11-01
+
+The first delivered archive,
+`obs-browser-nvidia-arch-x86_64-eba2d30-dirty-de43e3a638a5.tar.zst`, is **not a valid Xeon test build**.
+Its `obs-browser-page` ELF `GNU_PROPERTY_X86_ISA_1_NEEDED` value is `0xf`, including x86-64-v4;
+the Xeon E5-2680 v4 supports x86-64-v3. Local inspection also finds that requirement in the
+build host's glibc `Scrt1.o`, while the helper compile command has no `-march` override and GCC's
+default is baseline x86-64. Changing only compiler flags would not replace that startup object.
+The archive is preserved as evidence and must not be used for target measurements.
+
+The user reports that the successful NVIDIA numbers and real DMA-BUF callbacks came from the
+installed **r755 (x86-64-v3)** build, not this archive. The supplied log path
+`test-results/bundle-eba2d30-wayland/obs.log` is absent from the current checkout. This identifies
+the evidence as user-reported; no target-machine log or NVIDIA rerun is claimed here. All
+historical NVIDIA tables below belong to that reported installed-build context, not a validation
+of the newly packaged binaries. The current AMD checks below remain local AMD checks only.
+
+The packaging regression now checks every bundled ELF, including nested runtime libraries,
+and rejects declared required ISA bits outside baseline/v2/v3. Synthetic ELF fixtures verify
+baseline/v3 acceptance, unknown treatment of absent notes, rejection of v4/unknown bits in a
+nested library, and failure before archive/checksum creation when the helper requires v4.
+Per-file hashes, required ISA notes and compiler flags are saved in `BUILD-INFO.json`.
+This is a metadata guard, not proof that unmarked binaries or recipient system libraries meet
+the target CPU's instruction set. Clean generic/v3 build inputs and target execution are still needed.
+
+## Corrected v3 build verification — 2026-11-01
+
+The corrected binaries were built in clean generic Arch, using image digest
+`sha256:624bdc7fc6615155d67bc34cf7146c0c9fd0e3c92943977da63a630e4ca49c30`, glibc
+`2.44+r50+g1848099f063e-1`, GCC `16.2.1+r23+gd564253eb6c8-1`, OBS SDK 33.0.1 and Qt 6.12.0.
+The generic `Scrt1.o` declares baseline x86-64 (Linux ABI 4.4); both C and C++ builds explicitly
+use `-march=x86-64-v3 -mtune=generic`. CEF remains the pinned stock prebuilt 156.0.14.
+
+- All five CTest checks passed. The staged startup audit passed two iterations each of all four
+  modes, including initialization failure and clean shutdown.
+- The two fallback/lifecycle cases passed: two browser creations with shutdown-on-hide disabled,
+  three with it enabled, and a peak of one attached browser in both. CPU paint counts were 809
+  and 629 respectively. These are new runs, distinct from the earlier host-build counts below.
+- Release binaries were staged with `OBS_BROWSER_BUILD_TESTS=OFF` and
+  `OBS_BROWSER_ENABLE_DEVTOOLS=OFF`.
+- The ISA metadata guard passed all five bundled ELF files. The helper declares required baseline
+  x86-64 and used v3; the other four files lack an ISA-needed note and remain metadata-unknown.
+- Under QEMU's Haswell CPU model the old helper failed in the loader with
+  `CPU ISA level is lower than required` (exit 127). The corrected helper reached
+  `CefExecuteProcess`, returning -1 (exit 255), as expected without a subprocess type. This is
+  an entry-point check, not a complete CEF rendering or NVIDIA test under emulation.
+- Installed OBS 33.0.0 loaded the corrected Release plugin/private CEF through the launcher on
+  native Wayland in **CPU mode** on the AMD host. Exact screenshot colors/alpha, WebGL, animation
+  and the OBS JavaScript callback passed. Streaming/recording stayed inactive; shutdown was clean.
+
+Reproduce with `bash scripts/build-arch-v3-bundle.sh`. Outputs, toolchain/ELF notes and check logs
+are under `build-v3/`, and the default complete test archive is written to `build-v3/dist/`.
+The workflow uses prebuilt CEF and does not resume the cancelled Chromium source rebuild.
+No current target NVIDIA result is claimed; installed r755 evidence remains separately attributed above.
+
+## Earlier local host verification — 2026-11-01
+
+The current build host has AMD graphics, not NVIDIA. It runs Arch Linux with the OBS 33.0.0
+SDK, Qt 6.12.0 and GCC 16.2.1; the private runtime remains CEF 156.0.14 / Chromium 156.0.8078.48.
+
+- All five CTest checks passed: GPU policy, benchmark pixel validation, launcher defaults,
+  relocatable test-bundle packaging and safe rejection of CEF work before initialization.
+- The staged CEF startup audit passed two iterations each of pre-initialization, immediate
+  initialization/shutdown, immediate source creation/destruction, and locked-profile initialization
+  failure with clean shutdown.
+- A 12-second native Wayland **CPU-paint** fixture run produced exact red `(255,0,0,255)`,
+  half-green `(0,128,0,128)`, WebGL blue `(0,0,255,255)` and clear `(0,0,0,0)` samples, changing
+  animation frames and routed audio. This verifies the fallback rendering baseline, not NVIDIA
+  DMA-BUF import or performance.
+- The bundle/launcher smoke tests use disposable fake runtimes to check archive completeness,
+  private module overlays, relocation and config isolation. They do not prove hardware rendering.
+- The software-rendering overlapping-recreation regression passed both visibility modes after
+  the fallback fix. With shutdown-on-hide disabled it recorded two browser creations; with it
+  enabled it recorded three. Each finished with one attached browser and a peak of one, with
+  755 and 626 CPU paint callbacks respectively. This checks duplicate-creation prevention,
+  hide/show and resizing without requiring NVIDIA.
+- The initial host distribution build compiled in `Release` with `OBS_BROWSER_BUILD_TESTS=OFF` and
+  `OBS_BROWSER_ENABLE_DEVTOOLS=OFF`. Its runtime excludes test-only failure injection hooks.
+- A 24-second AMD watchdog run received no accelerated callbacks and switched once to CPU
+  paint after 15 seconds. It exited cleanly after 484 CPU paint callbacks and 1,091,584 routed
+  audio samples; post-fallback screenshots passed exact color/alpha and animation checks. This
+  validates missing-first-frame recovery, not NVIDIA rendering.
+- Full OBS 33 loaded the initial host Release plugin and private CEF through the `bubblewrap` launcher
+  in native Wayland **CPU** mode. Screenshot colors/alpha, WebGL, animation and the OBS JavaScript
+  status callback passed. Streaming and recording stayed inactive; shutdown was clean with zero
+  reported OBS leaks.
+- A separate Xvfb/software full-frontend run passed 2D colors/alpha/animation, the OBS JavaScript
+  callback, startup and shutdown, but its WebGL-blue sample was transparent. That environment
+  did **not** pass the complete rendering fixture and supplies no GPU-rendering evidence.
+
+NVIDIA acceleration was **not rerun locally** for this revision. The measurements below are
+historical records inherited from earlier work on an RTX 5060/615.78.08 system; their ignored raw
+artifacts are not included in the source checkout and they do not validate the current changes.
+
+CEF [#4313](https://github.com/chromiumembedded/cef/issues/4313) and
+[#4314](https://github.com/chromiumembedded/cef/pull/4314) identify missing **producer** GPU
+synchronization in the pinned CEF 156 path. The plugin's `glFinish` only completes the consumer
+copy before callback return; it does not wait for a missing producer dependency. Historical
+nonuniform-frame sampling cannot establish freedom from tearing or partially rendered frames.
+This remains an experimental test build pending an upstream CEF/Chromium fix and NVIDIA retest.
+
+## Historical NVIDIA validation — reported installed r755 (v3)
+
+Historical hardware: NVIDIA GeForce RTX 5060, driver 615.78.08. CachyOS/Arch, Hyprland.
+Historical SDK: OBS 33.0.0; compiler GCC 16.2.1. CEF 156.0.14 / Chromium 156.0.8078.48.
 
 ## Initial implementation smoke tests
 

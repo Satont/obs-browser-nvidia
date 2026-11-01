@@ -3,7 +3,7 @@ pkgver=2.27.5.r758.gd38ef44
 pkgrel=1
 pkgdesc='Experimental CEF 156 NVIDIA DMA-BUF browser sources for OBS (opt-in launcher)'
 arch=('x86_64')
-url='https://github.com/obsproject/obs-browser'
+url='https://github.com/Satont/obs-browser-nvidia'
 license=('GPL-2.0-or-later' 'BSD-3-Clause')
 depends=('obs-studio>=33' 'qt6-base' 'libx11' 'libdrm' 'libglvnd' 'bubblewrap' 'wayland'
          'alsa-lib' 'at-spi2-core' 'cairo' 'libcups' 'dbus' 'expat' 'glib2' 'gtk3'
@@ -11,7 +11,7 @@ depends=('obs-studio>=33' 'qt6-base' 'libx11' 'libdrm' 'libglvnd' 'bubblewrap' '
          'libxrandr' 'mesa' 'nspr' 'nss' 'pango' 'systemd-libs')
 makedepends=('git' 'cmake' 'ninja' 'nlohmann-json' 'simde')
 options=('!strip')
-_repo=${OBS_BROWSER_FORK_URL:-https://github.com/Linaryx/obs-browser.git}
+_repo=${OBS_BROWSER_FORK_URL:-https://github.com/Satont/obs-browser-nvidia.git}
 _cef='cef_binary_156.0.14+g4fa4ab5+chromium-156.0.8078.48_linux64_minimal'
 source=("obs-browser::git+${_repo}#branch=experimental/nvidia-cef156"
         "${_cef}.tar.bz2::https://cef-builds.spotifycdn.com/${_cef//+/%2B}.tar.bz2")
@@ -31,8 +31,6 @@ build() {
 
 package() {
   DESTDIR="$pkgdir" cmake --install build
-  install -Dm755 "$srcdir/obs-browser/scripts/obs-nvidia-browser" "$pkgdir/usr/bin/obs-nvidia-browser"
-  install -Dm644 "$srcdir/obs-browser/packaging/obs-nvidia-browser.desktop" "$pkgdir/usr/share/applications/obs-nvidia-browser.desktop"
   install -Dm644 "$srcdir/$_cef/LICENSE.txt" "$pkgdir/usr/share/licenses/$pkgname/CEF-LICENSE.txt"
   install -Dm644 "$srcdir/obs-browser/COPYING" "$pkgdir/usr/share/licenses/$pkgname/COPYING"
   install -Dm644 "$srcdir/obs-browser/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"

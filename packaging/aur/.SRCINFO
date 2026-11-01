@@ -2,7 +2,7 @@ pkgbase = obs-browser-nvidia-git
 	pkgdesc = Experimental CEF 156 NVIDIA DMA-BUF browser sources for OBS (opt-in launcher)
 	pkgver = 2.27.5.r758.gd38ef44
 	pkgrel = 1
-	url = https://github.com/obsproject/obs-browser
+	url = https://github.com/Satont/obs-browser-nvidia
 	arch = x86_64
 	license = GPL-2.0-or-later
 	license = BSD-3-Clause
@@ -38,7 +38,7 @@ pkgbase = obs-browser-nvidia-git
 	depends = pango
 	depends = systemd-libs
 	options = !strip
-	source = obs-browser::git+https://github.com/Linaryx/obs-browser.git#branch=experimental/nvidia-cef156
+	source = obs-browser::git+https://github.com/Satont/obs-browser-nvidia.git#branch=experimental/nvidia-cef156
 	source = cef_binary_156.0.14+g4fa4ab5+chromium-156.0.8078.48_linux64_minimal.tar.bz2::https://cef-builds.spotifycdn.com/cef_binary_156.0.14%2Bg4fa4ab5%2Bchromium-156.0.8078.48_linux64_minimal.tar.bz2
 	sha256sums = SKIP
 	sha256sums = 4191ac920a91a052eba04afb6ed830d47aed46a3e246c434a2f062c23588dc8a

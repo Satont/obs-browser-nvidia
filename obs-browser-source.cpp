@@ -121,6 +121,28 @@ BrowserSource::BrowserSource(obs_data_t *, obs_source_t *source_) : source(sourc
 			calldata_set_int(data, "graphics_wait_ns", bs->graphics_wait_ns.load());
 		},
 		this);
+#ifdef OBS_BROWSER_TEST_HOOKS
+	proc_handler_add(
+		ph, "void browser_test_fallback_race()",
+		[](void *p, calldata_t *) {
+			auto *bs = static_cast<BrowserSource *>(p);
+			// Hold the CEF queue while Tick sees both recreation requests.
+			if (QueueCEFTask([]() { os_sleep_ms(250); })) {
+				bs->create_browser = true;
+				bs->RequestCPUFallback("injected overlapping recreation");
+			}
+		},
+		this);
+	proc_handler_add(
+		ph, "void browser_test_state(out int creations, out int attached, out int peak)",
+		[](void *p, calldata_t *data) {
+			auto *bs = static_cast<BrowserSource *>(p);
+			calldata_set_int(data, "creations", bs->test_browser_creations.load());
+			calldata_set_int(data, "attached", bs->test_attached_browsers.load());
+			calldata_set_int(data, "peak", bs->test_peak_browsers.load());
+		},
+		this);
+#endif
 #endif
 
 	/* defer update */
@@ -140,6 +162,11 @@ static void ActuallyCloseBrowser(CefRefPtr<CefBrowser> cefBrowser)
 	CefRefPtr<CefClient> client = cefBrowser->GetHost()->GetClient();
 	BrowserClient *bc = reinterpret_cast<BrowserClient *>(client.get());
 	if (bc) {
+#if defined(__linux__) && defined(OBS_BROWSER_TEST_HOOKS)
+		if (bc->bs) {
+			--bc->bs->test_attached_browsers;
+		}
+#endif
 		bc->bs = nullptr;
 	}
 #if defined(OBS_BROWSER_ENABLE_DEVTOOLS) && CHROME_VERSION_BUILD >= 6533
@@ -223,6 +250,9 @@ void BrowserSource::ExecuteOnBrowser(BrowserFunc func, bool async)
 bool BrowserSource::CreateBrowser()
 {
 	return QueueCEFTask([this]() {
+		if (destroying || GetBrowser() || (shutdown_on_invisible && !obs_source_showing(source))) {
+			return;
+		}
 #ifdef ENABLE_BROWSER_SHARED_TEXTURE
 		if (hwaccel) {
 			obs_enter_graphics();
@@ -293,6 +323,13 @@ bool BrowserSource::CreateBrowser()
 			blog(LOG_ERROR, "[obs-browser]: Could not create browser source");
 			return;
 		}
+#if defined(__linux__) && defined(OBS_BROWSER_TEST_HOOKS)
+		++test_browser_creations;
+		const auto attached = ++test_attached_browsers;
+		if (attached > test_peak_browsers) {
+			test_peak_browsers = attached;
+		}
+#endif
 
 		if (reroute_audio)
 			cefBrowser->GetHost()->SetAudioMuted(true);
@@ -657,7 +694,7 @@ void BrowserSource::RequestCPUFallback(const char *reason)
 
 void BrowserSource::Tick()
 {
-	if (os_event_try(cef_started_event) != 0) {
+	if (destroying || os_event_try(cef_started_event) != 0) {
 		return;
 	}
 #ifdef __linux__
@@ -671,25 +708,33 @@ void BrowserSource::Tick()
 	}
 	if (fallback_requested.exchange(false)) {
 		gpu_active = false;
+		fallback_in_progress = true;
+		create_browser = false;
 		// Close and destroy textures on the CEF thread before queuing CPU creation.
-		QueueCEFTask([this]() {
-			if (destroying) {
-				return;
-			}
-			if (auto browser = GetBrowser()) {
-				ActuallyCloseBrowser(browser);
-			}
-			SetBrowser(nullptr);
-			DestroyTextures();
-			if (!shutdown_on_invisible || obs_source_showing(source)) {
-				create_browser = true;
-			}
-		});
+		if (!QueueCEFTask([this]() {
+			    if (destroying) {
+				    return;
+			    }
+			    if (auto browser = GetBrowser()) {
+				    ActuallyCloseBrowser(browser);
+			    }
+			    SetBrowser(nullptr);
+			    DestroyTextures();
+			    create_browser = !shutdown_on_invisible || obs_source_showing(source);
+			    fallback_in_progress = false;
+		    })) {
+			fallback_requested = true;
+			fallback_in_progress = false;
+		}
+		return;
+	}
+	if (fallback_in_progress) {
+		return;
 	}
 #endif
 
-	if (create_browser && CreateBrowser()) {
-		create_browser = false;
+	if (create_browser.exchange(false) && !CreateBrowser()) {
+		create_browser = true;
 	}
 #if defined(ENABLE_BROWSER_SHARED_TEXTURE)
 #if defined(BROWSER_EXTERNAL_BEGIN_FRAME_ENABLED)
